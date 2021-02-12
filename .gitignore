@@ -1,2 +1,3 @@
 nlss/.env
 .vscode/settings.json
+nlss/__pycache__/
