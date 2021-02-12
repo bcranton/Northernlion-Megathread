@@ -1,4 +1,3 @@
-from twitch import TwitchClient
 import twitch
 import os
 import datetime
@@ -9,10 +8,6 @@ twitch_access_token = os.environ.get("twitch_access_token")
 
 client = twitch.TwitchHelix(client_id=twitch_id,
                             oauth_token=twitch_access_token)
-
-# x = (client.get_streams(user_logins="DumbDog"))
-# print(x[0]["game_name"])
-# print(client.get_users(login_names="Northernlion")[0]["id"])
 
 
 class Stream:

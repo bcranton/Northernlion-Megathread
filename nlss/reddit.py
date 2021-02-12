@@ -1,9 +1,7 @@
 import os
 from datetime import datetime
 from datetime import date
-import time
 import praw
-import stream
 from dotenv import load_dotenv
 load_dotenv()
 reddit_id = os.environ.get("reddit_id")
@@ -77,6 +75,7 @@ def post(stream):
                                  username='NorthernlionBot')
             connected = True
         except:
+            import time
             time.sleep(30)
             pass
 

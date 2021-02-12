@@ -1,5 +1,3 @@
-import os
-import requests
 import time
 import sys
 import stream
