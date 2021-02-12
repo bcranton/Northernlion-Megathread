@@ -54,7 +54,7 @@ class Construct():
         # Link to past threads
         past = "### [Previous Mega Threads](https://www.reddit.com/r/northernlion/search?q=flair%3AMEGA+THREAD&sort=new&restrict_sr=on&t=a)"
 
-        footer = "\n\n----------------------------------------------\n\n^(^^Bot ^^created ^^by ) ^^^[/u/AManNamedLear](https://www.reddit.com/u/AManNamedLear) ^(^^| ^^Find ^^me ^^on) ^^^[GitHub](https://github.com/bcranton/NLSS-Megathread-Bot)"
+        footer = "\n\n----------------------------------------------\n\n^(^^Bot ^^created ^^by ) ^^^[/u/AManNamedLear](https://www.reddit.com/u/AManNamedLear) ^(^^| ^^Find ^^me ^^on) ^^^[GitHub](https://github.com/bcranton/Northernlion-Megathread)"
         # Mash 'em all together
         body = header + docket + clip + vodText + past + footer
         self.body = body
