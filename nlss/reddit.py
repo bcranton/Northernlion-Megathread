@@ -25,7 +25,8 @@ class Construct():
 
     def constructTitle(self):
         todayDate = date.today().strftime("%B %d, %Y")
-        day = datetime.datetime.now()
+        day = datetime.now()
+        day = day.strftime("%A")
         title = f"Post Stream Discussion Thread -- {day}, {todayDate}"
         self.title = title
 
