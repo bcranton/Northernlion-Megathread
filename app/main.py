@@ -16,6 +16,8 @@ logger = logging.getLogger(__name__)
 
 EVENTSUB_TYPES = ["stream.online", "stream.offline", "channel.update"]
 
+_startup_error: str | None = None
+
 
 async def _setup_eventsub_subscriptions(client: httpx.AsyncClient) -> None:
     """Subscribe to required EventSub webhook events, cleaning up stale subscriptions first."""
@@ -46,23 +48,32 @@ async def _setup_eventsub_subscriptions(client: httpx.AsyncClient) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application startup and shutdown lifecycle."""
+    global _startup_error
     settings = get_settings()
 
-    # Startup
+    # Startup — database init is required, but external API calls must not
+    # prevent the server from binding to PORT (Railway health checks need it).
     await state.init_db()
     logger.info("Monitoring channel: %s → r/%s", settings.twitch_channel, settings.subreddit)
 
-    async with httpx.AsyncClient() as client:
-        await twitch.get_app_access_token(client)
-        await _setup_eventsub_subscriptions(client)
+    try:
+        async with httpx.AsyncClient() as client:
+            await twitch.get_app_access_token(client)
+            await _setup_eventsub_subscriptions(client)
+    except Exception as exc:
+        _startup_error = f"{type(exc).__name__}: {exc}"
+        logger.error("Twitch setup failed during startup (server will still run): %s", exc)
 
     # Check for active stream from a previous run (crash recovery)
-    active = await state.get_active_stream(settings.twitch_channel)
-    if active:
-        logger.info(
-            "Recovered active stream (id=%d, thread=%s, docket=%s)",
-            active.id, active.reddit_thread_id, active.docket,
-        )
+    try:
+        active = await state.get_active_stream(settings.twitch_channel)
+        if active:
+            logger.info(
+                "Recovered active stream (id=%d, thread=%s, docket=%s)",
+                active.id, active.reddit_thread_id, active.docket,
+            )
+    except Exception as exc:
+        logger.error("Failed to check for active stream: %s", exc)
 
     yield
 
@@ -77,4 +88,6 @@ app.include_router(webhook_router)
 
 @app.get("/health")
 async def health():
+    if _startup_error:
+        return {"status": "degraded", "error": _startup_error}
     return {"status": "ok"}
