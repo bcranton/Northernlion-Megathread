@@ -47,13 +47,29 @@ async def _setup_eventsub_subscriptions(client: httpx.AsyncClient) -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application startup and shutdown lifecycle."""
-    global _startup_error
-    settings = get_settings()
+    """Application startup and shutdown lifecycle.
 
-    # Startup — database init is required, but external API calls must not
-    # prevent the server from binding to PORT (Railway health checks need it).
-    await state.init_db()
+    No exception in this function may prevent the server from starting —
+    Railway needs the process to bind to PORT so health checks pass.
+    """
+    global _startup_error
+
+    try:
+        settings = get_settings()
+    except Exception as exc:
+        _startup_error = f"Configuration error: {exc}"
+        logger.error("Failed to load settings (check env vars): %s", exc)
+        yield
+        return
+
+    try:
+        await state.init_db()
+    except Exception as exc:
+        _startup_error = f"Database init failed: {exc}"
+        logger.error("Database initialization failed: %s", exc)
+        yield
+        return
+
     logger.info("Monitoring channel: %s → r/%s", settings.twitch_channel, settings.subreddit)
 
     try:
@@ -61,7 +77,7 @@ async def lifespan(app: FastAPI):
             await twitch.get_app_access_token(client)
             await _setup_eventsub_subscriptions(client)
     except Exception as exc:
-        _startup_error = f"{type(exc).__name__}: {exc}"
+        _startup_error = f"Twitch setup failed: {exc}"
         logger.error("Twitch setup failed during startup (server will still run): %s", exc)
 
     # Check for active stream from a previous run (crash recovery)
@@ -78,7 +94,10 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    await state.close_db()
+    try:
+        await state.close_db()
+    except Exception:
+        pass
     logger.info("Shutdown complete")
 
 
