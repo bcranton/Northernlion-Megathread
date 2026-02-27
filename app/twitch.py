@@ -78,6 +78,8 @@ async def _request(
         headers = await _headers(client)
         resp = await client.request(method, url, headers=headers, **kwargs)
 
+    if resp.is_error:
+        logger.error("Twitch API %s %s → %s: %s", method, url, resp.status_code, resp.text)
     resp.raise_for_status()
     return resp
 
@@ -101,6 +103,7 @@ async def get_stream_info(client: httpx.AsyncClient, user_id: str) -> dict | Non
 async def subscribe_eventsub(
     client: httpx.AsyncClient,
     event_type: str,
+    version: str,
     broadcaster_id: str,
     callback_url: str,
     secret: str,
@@ -108,7 +111,7 @@ async def subscribe_eventsub(
     """Create an EventSub webhook subscription."""
     body = {
         "type": event_type,
-        "version": "1",
+        "version": version,
         "condition": {"broadcaster_user_id": broadcaster_id},
         "transport": {
             "method": "webhook",

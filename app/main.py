@@ -14,7 +14,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-EVENTSUB_TYPES = ["stream.online", "stream.offline", "channel.update"]
+EVENTSUB_TYPES = {
+    "stream.online": "1",
+    "stream.offline": "1",
+    "channel.update": "2",
+}
 
 _startup_error: str | None = None
 
@@ -36,12 +40,13 @@ async def _setup_eventsub_subscriptions(client: httpx.AsyncClient) -> None:
             active_types.add(sub["type"])
 
     # Subscribe to any missing event types
-    for event_type in EVENTSUB_TYPES:
+    for event_type, version in EVENTSUB_TYPES.items():
         if event_type in active_types:
             logger.info("EventSub %s already active, skipping", event_type)
             continue
         await twitch.subscribe_eventsub(
-            client, event_type, broadcaster_id, callback_url, settings.twitch_webhook_secret
+            client, event_type, version, broadcaster_id, callback_url,
+            settings.twitch_webhook_secret,
         )
 
 
