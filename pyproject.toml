@@ -2,7 +2,7 @@
 name = "northernlion-megathread"
 version = "2.0.0"
 description = "Twitch stream monitoring bot that creates and updates Reddit megathreads via EventSub webhooks"
-authors = [{name = "Brian Cranton", email = "github.com/bcranton"}]
+authors = [{name = "Brian Cranton"}]
 requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115.0",
