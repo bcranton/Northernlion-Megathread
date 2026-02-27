@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import aiosqlite
@@ -31,6 +32,11 @@ async def init_db() -> None:
             created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    # Migration: add ended_at column if it doesn't exist
+    try:
+        await _db.execute("ALTER TABLE streams ADD COLUMN ended_at TEXT")
+    except Exception:
+        pass  # Column already exists
     await _db.commit()
     logger.info("Database initialized at %s", db_path)
 
@@ -50,6 +56,7 @@ def _row_to_state(row: aiosqlite.Row) -> StreamState:
         docket=json.loads(row["docket"]) if row["docket"] else [],
         stream_start=row["stream_start"],
         is_live=bool(row["is_live"]),
+        ended_at=row["ended_at"],
     )
 
 
@@ -101,9 +108,36 @@ async def update_thread_id(stream_id: int, thread_id: str) -> None:
 
 
 async def mark_offline(stream_id: int) -> None:
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     await _db.execute(
-        "UPDATE streams SET is_live = 0 WHERE id = ?",
+        "UPDATE streams SET is_live = 0, ended_at = ? WHERE id = ?",
+        (now, stream_id),
+    )
+    await _db.commit()
+    logger.info("Marked stream id=%d as offline at %s", stream_id, now)
+
+
+async def get_recently_ended_stream(channel: str, grace_seconds: int) -> StreamState | None:
+    """Find the most recent stream that ended within the grace period."""
+    cutoff = (datetime.utcnow() - timedelta(seconds=grace_seconds)).strftime(
+        "%Y-%m-%d %H:%M:%S"
+    )
+    cursor = await _db.execute(
+        "SELECT * FROM streams WHERE twitch_channel = ? AND is_live = 0 "
+        "AND ended_at IS NOT NULL AND ended_at > ? ORDER BY id DESC LIMIT 1",
+        (channel, cutoff),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return _row_to_state(row)
+
+
+async def reactivate_stream(stream_id: int) -> None:
+    """Re-mark a recently-ended stream as live (stream restarted within grace period)."""
+    await _db.execute(
+        "UPDATE streams SET is_live = 1, ended_at = NULL WHERE id = ?",
         (stream_id,),
     )
     await _db.commit()
-    logger.info("Marked stream id=%d as offline", stream_id)
+    logger.info("Reactivated stream id=%d", stream_id)

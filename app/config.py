@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # App
     base_url: str
     database_path: str = "data/bot.db"
+    restart_grace_period_seconds: int = 1800  # 30 minutes
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 

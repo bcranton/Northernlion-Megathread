@@ -19,6 +19,9 @@ router = APIRouter()
 _processed_message_ids: dict[str, float] = {}
 _MESSAGE_ID_TTL_SECONDS = 600  # Keep IDs for 10 minutes
 
+# Track pending offline finalization tasks per channel so they can be cancelled
+_pending_offline_tasks: dict[str, asyncio.Task] = {}
+
 
 def _verify_signature(secret: str, headers: dict[str, str], body: bytes) -> bool:
     """Verify the HMAC-SHA256 signature of an EventSub webhook message."""
@@ -88,8 +91,14 @@ async def eventsub_callback(request: Request) -> Response:
     elif sub_type == "channel.update":
         await _handle_channel_update(payload)
     elif sub_type == "stream.offline":
+        # Cancel any existing pending offline task for this channel
+        channel = payload.event.get("broadcaster_user_login", "")
+        old_task = _pending_offline_tasks.pop(channel, None)
+        if old_task and not old_task.done():
+            old_task.cancel()
         # Run finalization in background so we can respond to Twitch quickly
-        asyncio.create_task(_handle_stream_offline(payload))
+        task = asyncio.create_task(_handle_stream_offline(payload))
+        _pending_offline_tasks[channel] = task
     else:
         logger.warning("Unhandled EventSub type: %s", sub_type)
 
@@ -97,12 +106,18 @@ async def eventsub_callback(request: Request) -> Response:
 
 
 async def _handle_stream_online(payload: EventSubNotification) -> None:
-    """Stream went live: create a Reddit thread and persist state."""
+    """Stream went live: create a Reddit thread (or reuse one) and persist state."""
     settings = get_settings()
     event = StreamOnlineEvent(**payload.event)
     channel = event.broadcaster_user_login
 
     logger.info("Stream online: %s (started at %s)", channel, event.started_at)
+
+    # Cancel any pending offline finalization task
+    pending = _pending_offline_tasks.pop(channel, None)
+    if pending and not pending.done():
+        pending.cancel()
+        logger.info("Cancelled pending offline task for %s (stream came back)", channel)
 
     # Check if we already have an active stream (crash recovery / duplicate event)
     existing = await state.get_active_stream(channel)
@@ -110,20 +125,32 @@ async def _handle_stream_online(payload: EventSubNotification) -> None:
         logger.info("Active stream already exists for %s (id=%d), skipping", channel, existing.id)
         return
 
-    # Get the current game being played
+    # Check for a recently-ended stream within the grace period
+    recent = await state.get_recently_ended_stream(
+        channel, settings.restart_grace_period_seconds
+    )
+    if recent:
+        logger.info(
+            "Reactivating recently-ended stream for %s (id=%d, ended_at=%s)",
+            channel, recent.id, recent.ended_at,
+        )
+        await state.reactivate_stream(recent.id)
+        body = reddit.build_thread_body(docket=recent.docket, is_live=True)
+        await reddit.update_thread(recent.reddit_thread_id, body)
+        return
+
+    # No reusable stream found — create a new one
     first_game = None
     async with httpx.AsyncClient() as client:
         stream_info = await twitch.get_stream_info(client, event.broadcaster_user_id)
         if stream_info:
             first_game = stream_info.get("game_name")
 
-    # Create the Reddit thread
     title = reddit.build_thread_title()
     docket = [first_game] if first_game else []
     body = reddit.build_thread_body(docket=docket, is_live=True)
     thread_id = await reddit.create_thread(title, body)
 
-    # Save state
     await state.create_stream(
         channel=channel,
         thread_id=thread_id,
@@ -170,8 +197,23 @@ async def _handle_stream_offline(payload: EventSubNotification) -> None:
         logger.warning("No active stream for %s on offline event", channel)
         return
 
+    stream_id = active_stream.id
+
     logger.info("Stream offline: %s — waiting 2 minutes for clips/VOD", channel)
-    await asyncio.sleep(120)
+    try:
+        await asyncio.sleep(120)
+    except asyncio.CancelledError:
+        logger.info("Offline task for %s was cancelled (stream restarted during sleep)", channel)
+        return
+
+    # Defense in depth: re-check that the stream is still active and unchanged
+    current = await state.get_active_stream(channel)
+    if not current or current.id != stream_id:
+        logger.info(
+            "Stream state changed for %s during sleep (expected id=%d), aborting finalization",
+            channel, stream_id,
+        )
+        return
 
     # Fetch clip and VOD
     clip = None
@@ -205,3 +247,6 @@ async def _handle_stream_offline(payload: EventSubNotification) -> None:
     # Mark stream as done
     await state.mark_offline(active_stream.id)
     logger.info("Finalized thread for %s", channel)
+
+    # Clean up task reference
+    _pending_offline_tasks.pop(channel, None)

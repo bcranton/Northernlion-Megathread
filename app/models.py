@@ -54,3 +54,4 @@ class StreamState(BaseModel):
     docket: list[str] = []
     stream_start: str | None = None
     is_live: bool = True
+    ended_at: str | None = None
