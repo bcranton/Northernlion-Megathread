@@ -35,7 +35,7 @@ class ChannelUpdateEvent(BaseModel):
     language: str
     category_id: str
     category_name: str
-    content_classification_labels: list[str] = []
+    content_classification_labels: list[dict] = []
 
 
 class EventSubNotification(BaseModel):
