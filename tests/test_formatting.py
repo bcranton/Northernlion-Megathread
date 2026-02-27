@@ -76,3 +76,19 @@ class TestBuildThreadBody:
         body = build_thread_body(docket=[], is_live=True)
         assert "AManNamedLear" in body
         assert "GitHub" in body
+
+    def test_sections_separated_by_blank_lines(self):
+        body = build_thread_body(docket=["Isaac"], is_live=True)
+        # Each section should be separated by double newlines (paragraph breaks)
+        assert "\n\n---\n\n" in body
+
+    def test_docket_items_on_separate_lines(self):
+        body = build_thread_body(docket=["Isaac", "Slay The Spire"], is_live=True)
+        assert "* Isaac\n* Slay The Spire" in body
+
+    def test_clip_creator_link_format(self):
+        clip = {"title": "Great Play", "url": "https://clips.twitch.tv/x", "creator_name": "user1"}
+        body = build_thread_body(docket=["Isaac"], clip=clip, is_live=False)
+        # Superscript syntax should use ^() grouping (new Reddit compatible)
+        assert "^(Clipped by Twitch user)" in body
+        assert "[^(user1)]" in body

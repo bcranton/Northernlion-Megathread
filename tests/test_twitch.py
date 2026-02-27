@@ -33,6 +33,23 @@ def _token_response() -> httpx.Response:
     return _response(200, {"access_token": "t", "expires_in": 3600, "token_type": "bearer"})
 
 
+def _mock_client(**request_returns) -> AsyncMock:
+    """Create a mock httpx.AsyncClient with token auth and request mock.
+
+    Args:
+        **request_returns: Keyword args passed to configure client.request side effects/returns.
+    """
+    client = AsyncMock(spec=httpx.AsyncClient)
+    # get_app_access_token calls client.post directly
+    client.post.return_value = _token_response()
+    # All API functions go through _request which calls client.request
+    if "side_effect" in request_returns:
+        client.request.side_effect = request_returns["side_effect"]
+    elif "return_value" in request_returns:
+        client.request.return_value = request_returns["return_value"]
+    return client
+
+
 @pytest.fixture(autouse=True)
 def reset_token_cache():
     """Reset the cached token between tests."""
@@ -63,22 +80,52 @@ class TestGetAppAccessToken:
         assert client.post.call_count == 1
 
 
+class TestTokenRefreshOn401:
+    async def test_retries_on_401_with_fresh_token(self):
+        """If a Twitch API call returns 401, the token should be refreshed and retried."""
+        client = AsyncMock(spec=httpx.AsyncClient)
+        # First token fetch
+        client.post.return_value = _response(
+            200, {"access_token": "fresh_token", "expires_in": 3600, "token_type": "bearer"}
+        )
+        # First request returns 401, retry returns success
+        client.request.side_effect = [
+            _response(401, {"error": "Unauthorized", "message": "Invalid access token"}),
+            _response(200, {"data": [{"id": "12345", "login": "northernlion"}]}),
+        ]
+
+        user_id = await twitch.get_user_id(client, "northernlion")
+        assert user_id == "12345"
+        # Token should have been fetched twice (initial + refresh)
+        assert client.post.call_count == 2
+        # API should have been called twice (original 401 + retry)
+        assert client.request.call_count == 2
+
+    async def test_raises_on_persistent_401(self):
+        """If retry also returns 401, the error should propagate."""
+        client = AsyncMock(spec=httpx.AsyncClient)
+        client.post.return_value = _response(
+            200, {"access_token": "t", "expires_in": 3600, "token_type": "bearer"}
+        )
+        client.request.side_effect = [
+            _response(401, {"error": "Unauthorized", "message": "Invalid"}),
+            _response(401, {"error": "Unauthorized", "message": "Still invalid"}),
+        ]
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await twitch.get_user_id(client, "northernlion")
+
+
 class TestGetUserId:
     async def test_resolves_user(self):
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(
-            200, {"data": [{"id": "12345", "login": "northernlion"}]}
+        client = _mock_client(
+            return_value=_response(200, {"data": [{"id": "12345", "login": "northernlion"}]})
         )
-
         user_id = await twitch.get_user_id(client, "northernlion")
         assert user_id == "12345"
 
     async def test_user_not_found(self):
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(200, {"data": []})
-
+        client = _mock_client(return_value=_response(200, {"data": []}))
         with pytest.raises(ValueError, match="not found"):
             await twitch.get_user_id(client, "nonexistent_user")
 
@@ -91,18 +138,12 @@ class TestGetTopClip:
             "title": "Amazing Clip",
             "creator_name": "clipper",
         }
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(200, {"data": [clip_data]})
-
+        client = _mock_client(return_value=_response(200, {"data": [clip_data]}))
         result = await twitch.get_top_clip(client, "123", "2026-01-01T00:00:00Z")
         assert result["title"] == "Amazing Clip"
 
     async def test_no_clips(self):
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(200, {"data": []})
-
+        client = _mock_client(return_value=_response(200, {"data": []}))
         result = await twitch.get_top_clip(client, "123", "2026-01-01T00:00:00Z")
         assert result is None
 
@@ -110,17 +151,11 @@ class TestGetTopClip:
 class TestGetLatestVod:
     async def test_returns_vod(self):
         vod_data = {"id": "v123", "url": "https://www.twitch.tv/videos/123"}
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(200, {"data": [vod_data]})
-
+        client = _mock_client(return_value=_response(200, {"data": [vod_data]}))
         result = await twitch.get_latest_vod(client, "123")
         assert result["url"] == "https://www.twitch.tv/videos/123"
 
     async def test_no_vods(self):
-        client = AsyncMock(spec=httpx.AsyncClient)
-        client.post.return_value = _token_response()
-        client.get.return_value = _response(200, {"data": []})
-
+        client = _mock_client(return_value=_response(200, {"data": []}))
         result = await twitch.get_latest_vod(client, "123")
         assert result is None

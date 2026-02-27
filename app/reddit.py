@@ -42,65 +42,64 @@ def build_thread_body(
 ) -> str:
     """Build the Reddit thread body markdown.
 
-    Args:
-        docket: List of games played during the stream.
-        vod_url: URL to the Twitch VOD (available after stream ends).
-        clip: Dict with 'url', 'title', 'creator_name' keys (available after stream ends).
-        is_live: Whether the stream is currently live.
+    Uses blank lines between sections for consistent paragraph breaks.
+    Single newlines within a section keep content together.
     """
-    parts = []
+    sections = []
 
     # Header
     if is_live:
-        parts.append("# Stream Discussion Thread\n")
-        parts.append("**The stream is currently LIVE!**\n")
+        sections.append("# Stream Discussion Thread")
+        sections.append("**The stream is currently LIVE!**")
     else:
-        parts.append("# Post Stream Discussion Thread\n")
+        sections.append("# Post Stream Discussion Thread")
 
-    parts.append("---------------------------------------------\n")
+    sections.append("---")
 
     # Docket
-    parts.append("### Docket\n")
+    docket_lines = ["### Docket", ""]
     if docket:
         for game in docket:
-            parts.append(f"* {game}")
+            docket_lines.append(f"* {game}")
     else:
-        parts.append("*No games detected yet*")
-    parts.append("")
+        docket_lines.append("*No games detected yet*")
+    sections.append("\n".join(docket_lines))
 
     # Clip (only after stream ends)
     if clip:
-        parts.append("*Today's Top Clip:*\n")
-        parts.append(f"**[{clip['title']}]({clip['url']})**\n")
         creator = clip["creator_name"]
-        parts.append(
-            f"^^^Clipped ^^^by ^^^Twitch ^^^user "
-            f"^^^[{creator}](https://twitch.tv/{creator})\n"
-        )
+        clip_lines = [
+            "*Today's Top Clip:*",
+            "",
+            f"**[{clip['title']}]({clip['url']})**",
+            "",
+            f"^(Clipped by Twitch user) [^({creator})](https://twitch.tv/{creator})",
+        ]
+        sections.append("\n".join(clip_lines))
+
+    sections.append("---")
 
     # VOD
-    parts.append("----------------------------------------------\n")
     if vod_url:
-        parts.append(f"### [Twitch VOD]({vod_url})\n")
+        sections.append(f"### [Twitch VOD]({vod_url})")
     elif is_live:
-        parts.append("*VOD will be added after the stream ends.*\n")
+        sections.append("*VOD will be added after the stream ends.*")
 
     # Previous threads
-    parts.append(
+    sections.append(
         "### [Previous Mega Threads]"
         "(https://www.reddit.com/r/northernlion/search?q=flair%3AMEGA+THREAD&sort=new&restrict_sr=on&t=a)"
     )
 
     # Footer
-    parts.append("\n----------------------------------------------\n")
-    parts.append(
-        "^(^^Bot ^^created ^^by ) "
-        "^^^[/u/AManNamedLear](https://www.reddit.com/u/AManNamedLear) "
-        "^(^^| ^^Find ^^me ^^on) "
-        "^^^[GitHub](https://github.com/bcranton/Northernlion-Megathread)"
+    sections.append("---")
+    sections.append(
+        "^(Bot created by) [^(/u/AManNamedLear)](https://www.reddit.com/u/AManNamedLear) "
+        "^(|) "
+        "[^(GitHub)](https://github.com/bcranton/Northernlion-Megathread)"
     )
 
-    return "\n".join(parts)
+    return "\n\n".join(sections)
 
 
 def _create_thread_sync(title: str, body: str) -> str:
