@@ -1,4 +1,5 @@
 import logging
+import sys
 from contextlib import asynccontextmanager
 
 import httpx
@@ -11,6 +12,7 @@ from app.webhooks import router as webhook_router
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
 
