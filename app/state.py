@@ -1,6 +1,6 @@
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -108,7 +108,7 @@ async def update_thread_id(stream_id: int, thread_id: str) -> None:
 
 
 async def mark_offline(stream_id: int) -> None:
-    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     await _db.execute(
         "UPDATE streams SET is_live = 0, ended_at = ? WHERE id = ?",
         (now, stream_id),
@@ -119,7 +119,7 @@ async def mark_offline(stream_id: int) -> None:
 
 async def get_recently_ended_stream(channel: str, grace_seconds: int) -> StreamState | None:
     """Find the most recent stream that ended within the grace period."""
-    cutoff = (datetime.utcnow() - timedelta(seconds=grace_seconds)).strftime(
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=grace_seconds)).strftime(
         "%Y-%m-%d %H:%M:%S"
     )
     cursor = await _db.execute(

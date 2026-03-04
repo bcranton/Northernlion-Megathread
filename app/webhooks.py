@@ -141,7 +141,7 @@ async def _handle_stream_online(payload: EventSubNotification) -> None:
 
     # No reusable stream found — create a new one
     first_game = None
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(timeout=30) as client:
         stream_info = await twitch.get_stream_info(client, event.broadcaster_user_id)
         if stream_info:
             first_game = stream_info.get("game_name")
@@ -215,38 +215,41 @@ async def _handle_stream_offline(payload: EventSubNotification) -> None:
         )
         return
 
-    # Fetch clip and VOD
-    clip = None
-    vod_url = None
-    async with httpx.AsyncClient() as client:
-        broadcaster_id = payload.event.get("broadcaster_user_id", "")
+    try:
+        # Fetch clip and VOD
+        clip = None
+        vod_url = None
+        async with httpx.AsyncClient(timeout=30) as client:
+            broadcaster_id = payload.event.get("broadcaster_user_id", "")
 
-        clip_data = await twitch.get_top_clip(
-            client, broadcaster_id, active_stream.stream_start
+            clip_data = await twitch.get_top_clip(
+                client, broadcaster_id, active_stream.stream_start
+            )
+            if clip_data:
+                clip = {
+                    "title": clip_data["title"],
+                    "url": clip_data["url"],
+                    "creator_name": clip_data["creator_name"],
+                }
+
+            vod_data = await twitch.get_latest_vod(client, broadcaster_id)
+            if vod_data:
+                vod_url = vod_data["url"]
+
+        # Final thread edit
+        body = reddit.build_thread_body(
+            docket=active_stream.docket,
+            vod_url=vod_url,
+            clip=clip,
+            is_live=False,
         )
-        if clip_data:
-            clip = {
-                "title": clip_data["title"],
-                "url": clip_data["url"],
-                "creator_name": clip_data["creator_name"],
-            }
+        await reddit.update_thread(active_stream.reddit_thread_id, body)
 
-        vod_data = await twitch.get_latest_vod(client, broadcaster_id)
-        if vod_data:
-            vod_url = vod_data["url"]
-
-    # Final thread edit
-    body = reddit.build_thread_body(
-        docket=active_stream.docket,
-        vod_url=vod_url,
-        clip=clip,
-        is_live=False,
-    )
-    await reddit.update_thread(active_stream.reddit_thread_id, body)
-
-    # Mark stream as done
-    await state.mark_offline(active_stream.id)
-    logger.info("Finalized thread for %s", channel)
+        # Mark stream as done
+        await state.mark_offline(active_stream.id)
+        logger.info("Finalized thread for %s", channel)
+    except Exception:
+        logger.exception("Failed to finalize thread for %s (stream id=%d)", channel, stream_id)
 
     # Clean up task reference
     _pending_offline_tasks.pop(channel, None)

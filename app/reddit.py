@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import date, datetime
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import praw
 
@@ -27,10 +28,14 @@ def _get_reddit() -> praw.Reddit:
     return _reddit
 
 
+_TIMEZONE = ZoneInfo("America/Vancouver")
+
+
 def build_thread_title() -> str:
-    """Build the thread title with today's date."""
-    today_date = date.today().strftime("%B %d, %Y")
-    day_name = datetime.now().strftime("%A")
+    """Build the thread title with today's date in Vancouver time."""
+    now = datetime.now(_TIMEZONE)
+    day_name = now.strftime("%A")
+    today_date = now.strftime("%B %d, %Y")
     return f"Stream Discussion Thread -- {day_name}, {today_date}"
 
 

@@ -1,7 +1,9 @@
 """Tests for Reddit thread body and title construction."""
 
 import os
+from datetime import datetime
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 # Set required env vars before importing app modules
 os.environ.update({
@@ -18,11 +20,11 @@ from app.reddit import build_thread_body, build_thread_title
 
 
 class TestBuildThreadTitle:
-    @patch("app.reddit.date")
     @patch("app.reddit.datetime")
-    def test_title_format(self, mock_datetime, mock_date):
-        mock_date.today.return_value.strftime.return_value = "February 27, 2026"
-        mock_datetime.now.return_value.strftime.return_value = "Friday"
+    def test_title_format(self, mock_datetime):
+        fake_now = datetime(2026, 2, 27, 12, 0, 0, tzinfo=ZoneInfo("America/Vancouver"))
+        mock_datetime.now.return_value = fake_now
+        mock_datetime.side_effect = lambda *a, **kw: datetime(*a, **kw)
         title = build_thread_title()
         assert title == "Stream Discussion Thread -- Friday, February 27, 2026"
 
