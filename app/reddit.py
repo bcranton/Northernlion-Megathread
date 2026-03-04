@@ -102,11 +102,32 @@ def build_thread_body(
     return "\n\n".join(sections)
 
 
+def _unpin_own_stickies_sync() -> None:
+    """Unpin any stickied posts in the subreddit made by the bot account."""
+    settings = get_settings()
+    reddit = _get_reddit()
+    subreddit = reddit.subreddit(settings.subreddit)
+    bot_name = settings.reddit_username.lower()
+
+    # Reddit allows at most 2 stickied posts (slots 1 and 2)
+    for slot in (1, 2):
+        try:
+            stickied = subreddit.sticky(number=slot)
+        except Exception:
+            # No sticky in this slot
+            continue
+        if stickied.author and stickied.author.name.lower() == bot_name:
+            stickied.mod.sticky(state=False)
+            logger.info("Unpinned previous thread id=%s from slot %d", stickied.id, slot)
+
+
 def _create_thread_sync(title: str, body: str) -> str:
     """Create a Reddit thread (synchronous). Returns the submission ID."""
     settings = get_settings()
     reddit = _get_reddit()
     subreddit = reddit.subreddit(settings.subreddit)
+
+    _unpin_own_stickies_sync()
 
     submission = subreddit.submit(title, selftext=body)
     submission.mod.sticky()
