@@ -1,21 +1,34 @@
-[tool.poetry]
-name = "nlss"
-version = "0.1.0"
-description = ""
-authors = ["Brian Cranton <github.com/bcranton>"]
+[project]
+name = "northernlion-megathread"
+version = "2.0.0"
+description = "Twitch stream monitoring bot that creates and updates Reddit megathreads via EventSub webhooks"
+authors = [{name = "Brian Cranton"}]
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "httpx>=0.28.0",
+    "praw>=7.8.0",
+    "python-dotenv>=1.0.0",
+    "aiosqlite>=0.21.0",
+    "pydantic-settings>=2.7.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.8"
-praw = "^7.1.4"
-python-dotenv = "^0.15.0"
-stream-python = "^5.0.1"
-python-twitch-client = "^0.7.1"
-
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
-pylint = "^2.6.0"
-autopep8 = "^1.5.5"
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100

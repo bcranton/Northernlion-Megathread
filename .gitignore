@@ -1,3 +1,24 @@
-nlss/.env
-.vscode/settings.json
+# Environment
+.env
+.venv/
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Database
+data/*.db
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Old package cache
 nlss/__pycache__/
