@@ -376,3 +376,182 @@ class TestStreamRestartGracePeriod:
             await _handle_stream_offline(payload)
 
         mock_state.mark_offline.assert_not_called()
+
+
+class TestGameDetectionRetry:
+    """Tests for the retry logic when fetching game info on stream start."""
+
+    def _make_online_payload(self):
+        from app.models import EventSubNotification
+        return EventSubNotification(
+            subscription={"id": "sub_1", "type": "stream.online", "version": "1",
+                          "condition": {"broadcaster_user_id": "123"}},
+            event={
+                "id": "evt_1",
+                "broadcaster_user_id": "123",
+                "broadcaster_user_login": "northernlion",
+                "broadcaster_user_name": "Northernlion",
+                "type": "live",
+                "started_at": "2026-02-27T10:00:00Z",
+            },
+        )
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_retries_when_stream_info_returns_none(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """Should retry fetching stream info when API returns None initially."""
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        # First two calls return None (API not ready), third returns game
+        mock_twitch.get_stream_info = AsyncMock(
+            side_effect=[None, None, {"game_name": "Slay the Spire 2"}]
+        )
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        assert mock_twitch.get_stream_info.call_count == 3
+        mock_state.create_stream.assert_called_once()
+        call_kwargs = mock_state.create_stream.call_args
+        assert call_kwargs.kwargs.get("first_game") == "Slay the Spire 2"
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_retries_when_game_name_empty(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """Should retry when stream info exists but game_name is empty string."""
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        # First call has empty game_name, second has the real game
+        mock_twitch.get_stream_info = AsyncMock(
+            side_effect=[{"game_name": ""}, {"game_name": "Slay the Spire 2"}]
+        )
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        assert mock_twitch.get_stream_info.call_count == 2
+        call_kwargs = mock_state.create_stream.call_args
+        assert call_kwargs.kwargs.get("first_game") == "Slay the Spire 2"
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_creates_thread_with_empty_docket_after_all_retries_fail(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """If all retries fail, thread should still be created with empty docket."""
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        mock_twitch.get_stream_info = AsyncMock(return_value=None)
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        assert mock_twitch.get_stream_info.call_count == 4
+        mock_reddit.create_thread.assert_called_once()
+        call_kwargs = mock_state.create_stream.call_args
+        assert call_kwargs.kwargs.get("first_game") is None
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_retries_on_api_exception(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """Should retry when the Twitch API raises an exception."""
+        import httpx
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        mock_twitch.get_stream_info = AsyncMock(
+            side_effect=[
+                httpx.HTTPStatusError("Server Error", request=MagicMock(), response=MagicMock()),
+                {"game_name": "Slay the Spire 2"},
+            ]
+        )
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        assert mock_twitch.get_stream_info.call_count == 2
+        call_kwargs = mock_state.create_stream.call_args
+        assert call_kwargs.kwargs.get("first_game") == "Slay the Spire 2"
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_no_retry_when_game_found_immediately(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """Should not retry when game is found on first attempt."""
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        mock_twitch.get_stream_info = AsyncMock(
+            return_value={"game_name": "Slay the Spire 2"}
+        )
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        # Only called once — no retries needed
+        assert mock_twitch.get_stream_info.call_count == 1
+        mock_sleep.assert_not_called()
+
+    @patch("app.webhooks.asyncio.sleep", new_callable=AsyncMock)
+    @patch("app.webhooks.reddit", new_callable=MagicMock)
+    @patch("app.webhooks.state")
+    @patch("app.webhooks.twitch")
+    async def test_retry_uses_exponential_backoff(
+        self, mock_twitch, mock_state, mock_reddit, mock_sleep
+    ):
+        """Should use exponential backoff delays between retries."""
+        from app.webhooks import _handle_stream_online
+
+        mock_state.get_active_stream = AsyncMock(return_value=None)
+        mock_state.get_recently_ended_stream = AsyncMock(return_value=None)
+        mock_state.create_stream = AsyncMock()
+        mock_twitch.get_stream_info = AsyncMock(return_value=None)
+        mock_reddit.build_thread_title = MagicMock(return_value="Test Title")
+        mock_reddit.build_thread_body = MagicMock(return_value="body")
+        mock_reddit.create_thread = AsyncMock(return_value="thread_id")
+
+        await _handle_stream_online(self._make_online_payload())
+
+        # Should sleep with exponential backoff: 1s, 2s, 4s
+        sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
+        assert sleep_calls == [1, 2, 4]
