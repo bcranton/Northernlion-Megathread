@@ -110,8 +110,9 @@ def build_thread_body(
 def _unpin_own_stickies_sync() -> None:
     """Unpin any stickied posts in the subreddit made by the bot account.
 
-    Old announcements can backfill into sticky slots when one is removed, so we
-    loop until a full pass finds no bot-owned stickies.
+    Community Highlights (new Reddit) can backfill into the two legacy sticky
+    slots when one is removed, so we loop until a full pass finds no bot-owned
+    stickies.
     """
     settings = get_settings()
     reddit = _get_reddit()
@@ -119,8 +120,8 @@ def _unpin_own_stickies_sync() -> None:
     bot_name = settings.reddit_username.lower()
 
     # Reddit allows at most 2 stickied posts (slots 1 and 2).
-    # Repeat until a full pass finds nothing to unpin, because removing a
-    # sticky can cause an older announcement to backfill into a slot.
+    # Repeat until a full pass finds nothing to unpin — Community Highlights
+    # (new Reddit, up to 6 posts) can backfill into these legacy slots.
     unpinned = True
     while unpinned:
         unpinned = False
