@@ -32,7 +32,7 @@ class TestBuildThreadTitle:
 class TestBuildThreadBody:
     def test_live_body_with_games(self):
         body = build_thread_body(docket=["Isaac", "Slay The Spire"], is_live=True)
-        assert "LIVE" in body
+        assert "[LIVE!](https://www.twitch.tv/Northernlion)" in body
         assert "* Isaac" in body
         assert "* Slay The Spire" in body
         assert "VOD will be added after the stream ends" in body

@@ -54,8 +54,12 @@ def build_thread_body(
 
     # Header
     if is_live:
+        settings = get_settings()
+        channel_url = f"https://www.twitch.tv/{settings.twitch_channel}"
         sections.append("# Stream Discussion Thread")
-        sections.append("**The stream is currently LIVE!**")
+        sections.append(
+            f"**The stream is currently [LIVE!]({channel_url})**"
+        )
     else:
         sections.append("# Post Stream Discussion Thread")
 
