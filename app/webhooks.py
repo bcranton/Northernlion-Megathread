@@ -139,12 +139,37 @@ async def _handle_stream_online(payload: EventSubNotification) -> None:
         await reddit.update_thread(recent.reddit_thread_id, body)
         return
 
-    # No reusable stream found — create a new one
+    # No reusable stream found — create a new one.
+    # The Twitch Helix API can lag behind EventSub notifications, so we retry
+    # a few times with short delays if the stream info or game_name isn't
+    # available yet.
     first_game = None
     async with httpx.AsyncClient(timeout=30) as client:
-        stream_info = await twitch.get_stream_info(client, event.broadcaster_user_id)
-        if stream_info:
-            first_game = stream_info.get("game_name")
+        for attempt in range(4):
+            try:
+                stream_info = await twitch.get_stream_info(
+                    client, event.broadcaster_user_id
+                )
+            except Exception:
+                logger.warning(
+                    "Failed to fetch stream info for %s (attempt %d/4)",
+                    channel, attempt + 1, exc_info=True,
+                )
+                stream_info = None
+
+            if stream_info:
+                first_game = stream_info.get("game_name") or None
+
+            if first_game:
+                break
+
+            if attempt < 3:
+                delay = 2 ** attempt  # 1s, 2s, 4s
+                logger.info(
+                    "No game detected for %s (attempt %d/4), retrying in %ds",
+                    channel, attempt + 1, delay,
+                )
+                await asyncio.sleep(delay)
 
     title = reddit.build_thread_title()
     docket = [first_game] if first_game else []
