@@ -70,6 +70,29 @@ class TestUnpinOwnStickies:
         other_sticky.mod.sticky.assert_not_called()
 
     @patch("app.reddit._get_reddit")
+    def test_unpins_both_when_bot_owns_both_slots(self, mock_get_reddit):
+        mock_reddit = MagicMock()
+        mock_get_reddit.return_value = mock_reddit
+        subreddit = mock_reddit.subreddit.return_value
+
+        bot_sticky_1 = MagicMock()
+        bot_sticky_1.author.name = "NorthernlionBot"
+        bot_sticky_1.id = "post1"
+        bot_sticky_2 = MagicMock()
+        bot_sticky_2.author.name = "NorthernlionBot"
+        bot_sticky_2.id = "post2"
+
+        # Simulate Reddit behaviour: unpinning slot 2 does not affect slot 1,
+        # but unpinning slot 1 would shift slot 2 → 1.  Because we iterate in
+        # reverse (2, 1), both calls should see the correct post.
+        subreddit.sticky.side_effect = lambda number: {1: bot_sticky_1, 2: bot_sticky_2}[number]
+
+        reddit._unpin_own_stickies_sync()
+
+        bot_sticky_1.mod.sticky.assert_called_once_with(state=False)
+        bot_sticky_2.mod.sticky.assert_called_once_with(state=False)
+
+    @patch("app.reddit._get_reddit")
     def test_handles_empty_sticky_slots(self, mock_get_reddit):
         mock_reddit = MagicMock()
         mock_get_reddit.return_value = mock_reddit

@@ -114,8 +114,9 @@ def _unpin_own_stickies_sync() -> None:
     subreddit = reddit.subreddit(settings.subreddit)
     bot_name = settings.reddit_username.lower()
 
-    # Reddit allows at most 2 stickied posts (slots 1 and 2)
-    for slot in (1, 2):
+    # Reddit allows at most 2 stickied posts (slots 1 and 2).
+    # Iterate in reverse so that unpinning slot 2 doesn't shift slot 2 → 1.
+    for slot in (2, 1):
         try:
             stickied = subreddit.sticky(number=slot)
         except Exception:
