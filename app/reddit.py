@@ -107,7 +107,7 @@ def build_thread_body(
         "^(|) "
         "[^(GitHub)](https://github.com/bcranton/Northernlion-Megathread)"
         "\n\n"
-        "^(📍) [EggEats.com](https://eggeats.com) ^- ^an ^interactive ^map ^of ^every ^place ^NL ^has ^eaten."
+        "^(📍) [^(EggEats.com)](https://eggeats.com) ^- ^an ^interactive ^map ^of ^every ^place ^NL ^has ^eaten."
     )
 
     return "\n\n".join(sections)
