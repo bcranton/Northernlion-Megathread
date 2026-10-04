@@ -1,0 +1,73 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "nl-megathread",
+  "server": {},
+  "permissions": {
+    "http": {
+      "enable": true,
+      "domains": ["id.twitch.tv", "api.twitch.tv"]
+    },
+    "reddit": {"enable": true},
+    "redis": true
+  },
+  "scheduler": {
+    "tasks": {
+      "poll-stream": {
+        "endpoint": "/internal/scheduler/poll-stream",
+        "cron": "* * * * *"
+      }
+    }
+  },
+  "settings": {
+    "global": {
+      "twitchClientId": {
+        "type": "string",
+        "label": "Twitch client ID",
+        "isSecret": true
+      },
+      "twitchClientSecret": {
+        "type": "string",
+        "label": "Twitch client secret",
+        "isSecret": true
+      }
+    },
+    "subreddit": {
+      "enabled": {
+        "type": "boolean",
+        "label": "Post megathreads",
+        "helpText": "Turn off to pause the bot without uninstalling it.",
+        "defaultValue": true
+      },
+      "twitchChannel": {
+        "type": "string",
+        "label": "Twitch channel",
+        "defaultValue": "Northernlion"
+      },
+      "restartGracePeriodMinutes": {
+        "type": "number",
+        "label": "Restart grace period (minutes)",
+        "helpText": "If the stream comes back within this many minutes of ending, the previous thread is reused.",
+        "defaultValue": 30
+      },
+      "flairText": {
+        "type": "string",
+        "label": "Thread flair text",
+        "defaultValue": "[MEGA THREAD]"
+      },
+      "flairCssClass": {
+        "type": "string",
+        "label": "Thread flair CSS class",
+        "defaultValue": "mega"
+      },
+      "legacyBotUsernames": {
+        "type": "string",
+        "label": "Also unpin threads from these accounts",
+        "helpText": "Comma-separated usernames, without u/. Stickied threads from the old Python bot are unpinned when a new thread is posted.",
+        "defaultValue": "NorthernlionBot"
+      }
+    }
+  },
+  "scripts": {
+    "dev": "npm run watch"
+  }
+}
