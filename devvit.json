@@ -1,13 +1,18 @@
 {
   "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
-  "name": "nl-megathread",
+  "name": "northernlion-thread",
   "server": {},
   "permissions": {
     "http": {
       "enable": true,
-      "domains": ["id.twitch.tv", "api.twitch.tv"]
+      "domains": [
+        "id.twitch.tv",
+        "api.twitch.tv"
+      ]
     },
-    "reddit": {"enable": true},
+    "reddit": {
+      "enable": true
+    },
     "redis": true
   },
   "scheduler": {

@@ -1,8 +1,8 @@
 {
   "private": true,
-  "name": "nl-megathread",
+  "name": "northernlion-thread",
   "version": "0.0.0",
-  "license": "UNLICENSED",
+  "license": "BSD-3-Clause",
   "type": "module",
   "scripts": {
     "build": "npm run build:server -- --metafile=dist/server.meta.json --minify",
