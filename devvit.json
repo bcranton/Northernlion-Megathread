@@ -5,10 +5,7 @@
   "permissions": {
     "http": {
       "enable": true,
-      "domains": [
-        "id.twitch.tv",
-        "api.twitch.tv"
-      ]
+      "domains": ["id.twitch.tv", "api.twitch.tv"]
     },
     "reddit": {
       "enable": true
