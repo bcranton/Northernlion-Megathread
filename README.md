@@ -56,8 +56,13 @@ Commands, run from this directory:
 
 The following domains are requested for this app:
 
-- `id.twitch.tv` - Gets an app access token (OAuth client credentials) for the
-  Twitch API.
+- `id.twitch.tv` - Required by Twitch to call its API at all: the app POSTs its
+  own Twitch client ID and secret to `https://id.twitch.tv/oauth2/token`
+  (the [client credentials grant](https://dev.twitch.tv/docs/authentication/getting-tokens-oauth/#client-credentials-grant-flow))
+  to get an app access token for `api.twitch.tv`. This is not account linking:
+  no Reddit or Twitch user ever signs in, no user tokens are requested, and no
+  Reddit data is sent to Twitch. It's the only endpoint called on this domain,
+  roughly once every two months when the token expires.
 - `api.twitch.tv` - Reads public stream status, current game, top clip and
   latest VOD for the configured channel via the Twitch Helix API.
 
