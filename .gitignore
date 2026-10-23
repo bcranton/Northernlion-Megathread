@@ -1,17 +1,6 @@
-# Environment
-.env
-.venv/
-venv/
-
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-dist/
-build/
-
-# Database
-data/*.db
+/node_modules/
+/dist/
+/.env
 
 # IDE
 .vscode/
@@ -19,6 +8,3 @@ data/*.db
 
 # OS
 .DS_Store
-
-# Old package cache
-nlss/__pycache__/

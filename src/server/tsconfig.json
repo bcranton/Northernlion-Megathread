@@ -1,0 +1,8 @@
+// TypeScript config for all server code.
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "customConditions": ["server"]
+  }
+}
